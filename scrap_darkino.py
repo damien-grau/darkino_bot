@@ -1,7 +1,6 @@
 import datetime
 import requests
 from bs4 import BeautifulSoup
-from colorama import Fore
 import codecs
 from dotenv import load_dotenv
 import os
