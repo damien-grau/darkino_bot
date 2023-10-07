@@ -3,17 +3,14 @@ import requests
 from bs4 import BeautifulSoup
 from colorama import Fore
 import codecs
+from dotenv import load_dotenv
+import os
+from darkinolog import DarkinoLog
 
+darkino_log = DarkinoLog()
+load_dotenv()
 
-RED = Fore.RED
-GREEN = Fore.GREEN
-RESET = Fore.RESET
-
-
-def print_log(title, value, color=None):
-    if not color:
-        color = RESET
-    print(color + f"[{datetime.datetime.now()}] [LOG] {title} : {value}")
+URL_LAST_2023 = os.getenv("URL_LAST_2023") + os.getenv("GET_REQUEST")
 
 
 def __get_film_info__(movie, **kwargs):
@@ -34,7 +31,7 @@ def __get_film_info__(movie, **kwargs):
         desc = desc.findNextSiblings()[0].getText().strip()
     else:
         desc = "-"
-        print_log("Scrapping Error", f"No Synopsis match for \"{movie['title']}\"", RED)
+        darkino_log.print_log("Scrapping Error", f"No Synopsis match for \"{movie['title']}\"", "RED", save=True)
 
     actors_list = soup_temp.find("span", string="Acteurs")
     if actors_list:
@@ -42,7 +39,7 @@ def __get_film_info__(movie, **kwargs):
         actors = ", ".join([gender.getText() for gender in actors_list])
     else:
         actors = "-"
-        print_log("Scrapping Error", f"No Actors match for \"{movie['title']}\"", RED)
+        darkino_log.print_log("Scrapping Error", f"No Actors match for \"{movie['title']}\"", "RED", save=True)
 
 
     gender_list = soup_temp.find("span", string="Genre")
@@ -51,7 +48,7 @@ def __get_film_info__(movie, **kwargs):
         genders = ", ".join([gender.getText() for gender in gender_list])
     else:
         genders = "-"
-        print_log("Scrapping Error", f"No Gender match for \"{movie['title']}\"", RED)
+        darkino_log.print_log("Scrapping Error", f"No Gender match for \"{movie['title']}\"", "RED", save=True)
 
     trailer_link = ""
     embed = soup_temp.find("iframe")
@@ -68,9 +65,9 @@ def __get_film_info__(movie, **kwargs):
             # Select the entire link. The v value can't be greater than 11 characters.
             trailer_link = embed_page[start_index:start_index+43]
         else:
-            print_log("Matching Error", "No matching patterns to a Youtube Video URL found", RED)
+            darkino_log.print_log("Matching Error", "No matching patterns to a Youtube Video URL found", "RED", save=True)
     else:
-        print_log("Scrapping Error", f"Trailer Link not found for \"{movie['title']}\"", RED)
+        darkino_log.print_log("Scrapping Error", f"Trailer Link not found for \"{movie['title']}\"", "RED", save=True)
 
     return desc, actors, genders, trailer_link
 
@@ -86,17 +83,17 @@ def __get_page__(url: str, log: bool = True) -> bool | bytes:
     try:
         response = client.get(url)
     except requests.exceptions.ConnectionError:
-        print_log("ConnectionError", f"The server refused the connexion. Url : {url}", RED)
+        darkino_log.print_log("ConnectionError", f"The server refused the connexion. Url : {url}", "RED", save=True)
         return False
     finally:
         client.close()
 
     if not response.ok:
         if log:
-            print_log("HTTP request", f"{response.status_code} for {url}", RED)
+            darkino_log.print_log("HTTP request", f"{response.status_code} for {url}", "RED", save=True)
         return False
     if log:
-        print_log("HTTP request", f"{response.status_code} for {url}", GREEN)
+        darkino_log.print_log("HTTP request", f"{response.status_code} for {url}", "GREEN", save=True)
     return response.content
 
 
@@ -106,7 +103,6 @@ def get_all_latest() -> list[dict] | bool:
     Can return False if the website is not accessible
     :return: a list of dictionaries or boolean
     """
-    URL_LAST_2023 = "https://www2.darkino.biz/posts?category=2&period%5B%5D=2023&slug=last"
     page_source = __get_page__(URL_LAST_2023)
 
     if not page_source:

@@ -7,10 +7,16 @@ from discord import app_commands
 import os
 import scrap_darkino
 import asyncio
-from dotenv import load_dotenv
+import dotenv
+from darkinolog import DarkinoLog
+
+
+dotenv_file = dotenv.find_dotenv()
+dotenv.load_dotenv(dotenv_file)
+
+darkino_log = DarkinoLog()
 
 os.system("clear")
-load_dotenv()
 DISCORD_TOKEN = os.getenv("DISCORD_TOKEN")
 
 bot = commands.Bot(command_prefix="!", intents=discord.Intents.all())
@@ -18,16 +24,8 @@ old_all_movies = []
 all_movies = []
 guild_dict = {}
 
-# COLORAMA COLORS
-RED = Fore.RED
-GREEN = Fore.GREEN
-YELLOW = Fore.YELLOW
-RESET = Fore.RESET
 
-def print_log(title: str, value: str, color: str = None) -> None:
-    if not color:
-        color = RESET
-    print(color + f"[{datetime.datetime.now()}] [LOG] {title} : {value}")
+
 
 
 async def update_channels(guild):
@@ -91,7 +89,7 @@ async def print_new_film() -> None:
                     image_url=new_movie["img_url"],
                     movie=new_movie,
                     dl_url=new_movie['redirect_url'])
-                print_log(title="New film ", value=f"New film found : '{new_movie['title']}'", color=GREEN)
+                darkino_log.print_log(title="New film ", value=f"New film found : '{new_movie['title']}'", color="GREEN", save=True)
     old_all_movies = all_movies
 
 
@@ -106,11 +104,11 @@ def retrieve_dict(filename) -> dict | list:
     repo = os.path.dirname(path)
     verif_path = os.path.join(repo, filename)
     if not os.path.isfile(verif_path):
-        print_log(title="Json extraction", value=f"No such file named '{filename}'", color=RED)
+        darkino_log.print_log(title="Json extraction", value=f"No such file named '{filename}'", color="RED", save=True)
         return {}
     with open(filename, "r") as f:
         json_data = json.load(f)
-    print_log(title="Json extraction", value=f"Successfully extracted '{filename}'", color=GREEN)
+    darkino_log.print_log(title="Json extraction", value=f"Successfully extracted '{filename}'", color="GREEN", save=True)
     return json_data
 
 
@@ -138,7 +136,7 @@ async def on_ready():
             }
     try:
         synced = await bot.tree.sync()
-        print_log(title="Syncing", value=f"Synced {len(synced)} command(s)", color=YELLOW)
+        darkino_log.print_log(title="Syncing", value=f"Synced {len(synced)} command(s)", color="YELLOW", save=True)
     except Exception as e:
         print(e)
     bot.loop.create_task(loop_get_film())
@@ -171,11 +169,30 @@ async def set_channel(interaction: discord.Interaction, channel_id: str):
         await interaction.response.send_message(f"le channel {channel_id} n'existe pas")
 
 
+@bot.tree.command(name="change_link", description="Set the a new Darkino Link")
+@app_commands.checks.has_permissions(administrator=True)
+async def change_link(interaction: discord.Interaction, url: str) -> None:
+    """_summary_
+
+    Args:
+        interaction (discord.Interaction): Input command
+        url (str): New Darkino URL
+    """
+    if url[-1] != "/":
+        url += "/"
+    if url[0:8] != "https://":
+        url = "https://" + url
+    last_url = os.environ["URL_LAST_2023"] 
+    os.environ["URL_LAST_2023"] = url
+    darkino_log.print_log("New URL set", f"{interaction.user} set a new url, from {last_url} to {url}", "YELLOW", save=True)
+    dotenv.set_key(dotenv_file, "URL_LAST_2023", os.environ["URL_LAST_2023"])
+    await interaction.response.send_message(f"Vous avez changé l'URL par {url} (anciennement: {last_url})")
+        
 # ----------------------------- OTHERS -----------------------------
 
 bot.run(DISCORD_TOKEN)
 save_dict(guild_dict, "guild_dict.json")
-print_log("Saving", "guild_dict.json successfully saved", GREEN)
+darkino_log.print_log("Saving", "guild_dict.json successfully saved", "GREEN", save=True)
 save_dict(all_movies, "all_movies.json")
-print_log("Saving", "all_movies.json successfully saved", GREEN)
+darkino_log.print_log("Saving", "all_movies.json successfully saved", "GREEN", save=True)
 
