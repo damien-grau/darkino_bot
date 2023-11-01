@@ -1,3 +1,4 @@
+from colorama import Fore
 import json
 import datetime
 import discord
@@ -24,9 +25,6 @@ all_movies = []
 guild_dict = {}
 
 
-
-
-
 async def update_channels(guild):
     global guild_dict
     """
@@ -42,13 +40,14 @@ async def send_embed(channel: discord.TextChannel, title: str, descritpion: str,
     embed.set_image(url=image_url)
 
     film_info = scrap_darkino.__get_film_info__(movie)
-    genders, actors, descritpion, trailer_link = film_info[2], film_info[1], film_info[0], film_info[3]
+    genders, actors, descritpion, trailer_link, all_files_string = film_info[2], film_info[1], film_info[0], film_info[3], film_info[4]
     embed.add_field(name="Genre(s)", value=genders, inline=False)
     embed.add_field(name="Acteur(s)", value=actors, inline=False)
     embed.add_field(name="Description", value=descritpion, inline=False)
     if trailer_link:
         embed.add_field(name="Bande annonce", value=f"[Bande annonce ici]({trailer_link})", inline=False)
-    embed.add_field(name="Téléchargement", value=f"[Télécharger ici]({dl_url})", inline=False)
+    embed.add_field(name="Plus de détails", value=f"[Cliquer ici]({dl_url})", inline=False)
+    embed.add_field(name="Fichiers disponibles", value=all_files_string)
     embed.set_footer(text="by ezvizion")
     await channel.send(embed=embed)
 
@@ -75,7 +74,7 @@ async def print_new_film() -> None:
         for movie in all_movies:
             if not any(movie["title"] == old_movie["title"] for old_movie in old_all_movies):
                 new_movies.append(movie)
-                
+         
     for guild_id in guild_dict:
         if guild_dict[guild_id]["latest_film_channel_id"]:
             film_channel = bot.get_channel(int(guild_dict[guild_id]["latest_film_channel_id"]))
@@ -88,7 +87,7 @@ async def print_new_film() -> None:
                     image_url=new_movie["img_url"],
                     movie=new_movie,
                     dl_url=new_movie['redirect_url'])
-                darkino_log.print_log(title="New film ", value=f"New film found : '{new_movie['title']}'", color="GREEN", save=True)
+                darkino_log.print_log(title="New film ", value=f"New film found : '{new_movie['title']}'", color="GREEN")
     old_all_movies = all_movies
 
 
@@ -99,11 +98,20 @@ async def loop_get_film() -> None:
 
 
 def retrieve_dict(filename) -> dict | list:
+    """retriever json information of a specific file and return it
+    in dict or list format depending of the json file format.
+
+    Args:
+        filename (str): name of the json file
+
+    Returns:
+        dict | list: json data retrieved in python object
+    """
     path = os.path.abspath(__file__)
     repo = os.path.dirname(path)
     verif_path = os.path.join(repo, filename)
     if not os.path.isfile(verif_path):
-        darkino_log.print_log(title="Json extraction", value=f"No such file named '{filename}'", color="RED", save=True)
+        darkino_log.print_log(title="Json extraction", value=f"No such file named '{filename}'", color="RED")
         return {}
     with open(filename, "r") as f:
         json_data = json.load(f)
@@ -135,7 +143,7 @@ async def on_ready():
             }
     try:
         synced = await bot.tree.sync()
-        darkino_log.print_log(title="Syncing", value=f"Synced {len(synced)} command(s)", color="YELLOW", save=True)
+        darkino_log.print_log(title="Syncing", value=f"Synced {len(synced)} command(s)", color="YELLOW")
     except Exception as e:
         print(e)
     bot.loop.create_task(loop_get_film())
@@ -191,7 +199,7 @@ async def change_link(interaction: discord.Interaction, url: str) -> None:
 
 bot.run(DISCORD_TOKEN)
 save_dict(guild_dict, "guild_dict.json")
-darkino_log.print_log("Saving", "guild_dict.json successfully saved", "GREEN", save=True)
+darkino_log.print_log("Saving", "guild_dict.json successfully saved", "GREEN")
 save_dict(all_movies, "all_movies.json")
-darkino_log.print_log("Saving", "all_movies.json successfully saved", "GREEN", save=True)
+darkino_log.print_log("Saving", "all_movies.json successfully saved", "GREEN")
 
