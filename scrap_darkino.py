@@ -1,6 +1,7 @@
 import datetime
 import requests
 from bs4 import BeautifulSoup
+from colorama import Fore
 import codecs
 from dotenv import load_dotenv
 import os
@@ -16,8 +17,7 @@ def __get_film_info__(movie, **kwargs):
     """
     Retrieve description of the film, actors, gender, yt trailer
     :movie: dictionnary of the film
-    :log: boolean show http request code or not
-    :return: tuple => description, actors, gender, yt trailer link
+    :return: tuple => description, actors, gender, yt trailer link, list of files uploaded
     """
     if "log" in kwargs:
         log = kwargs["log"]
@@ -67,8 +67,41 @@ def __get_film_info__(movie, **kwargs):
             darkino_log.print_log("Matching Error", "No matching patterns to a Youtube Video URL found", "RED", save=True)
     else:
         darkino_log.print_log("Scrapping Error", f"Trailer Link not found for \"{movie['title']}\"", "RED", save=True)
+    
+    # Fetching all files uploaded
+    tbody = soup_temp.find("div", {"x-show": "tab === '1fichier'"}).findChildren(recursive=False)[0].findChildren(recursive=False)[0].findChildren(recursive=False)[0].findChildren(recursive=False)[1].findChildren(recursive=False)[0].findChildren(recursive=False)[1].findChildren(recursive=False)
+    all_film_files = []
+    for item in tbody:
+        link = item.findChildren(recursive=False)[1].find("a")["href"]
+        size = item.findChildren(recursive=False)[3].find("span").text.strip()
+        quality = item.findChildren(recursive=False)[4].find("span").text.strip()
+        lang = " ".join([span.text.replace("\n", "") for span in item.findChildren(recursive=False)[5].findAll("span", {"class": "badge bg-primary space-x-7"})])
 
-    return desc, actors, genders, trailer_link
+        all_film_files.append([link, size, quality, lang])
+        
+    """ 
+    Triage des doublons par qualité, taille, langue
+    
+    Pour chaque film dans tous les films:
+    Si film est dans dict ET langue du film dans dict pas FR ET langue du film pas dans dict est FR ALORS remplace dans dict
+    SINON SI Dans dict  ET taille film < taille film dans dict ALORS remplace dans dict
+    SI PAS DANS DICT: ajoute dans dict
+
+    FORMAT (examples):
+    lang | film[4]: str = "TrueFrench English"
+    """
+    films_dict = {}
+    fr_lang = ["French", "TrueFrench", "MULTI"]
+    for film in all_film_files:
+        if (film[2] in films_dict and any(lang not in fr_lang for lang in films_dict[film[2]][3].split(" ")) and any(lang in fr_lang for lang in film[3].split(" "))) or \
+            (film[2] in films_dict and float(film[1].split(" ")[0]) < float(films_dict[film[2]][1].split(" ")[0]) or \
+                (film[2] not in films_dict)):
+            films_dict[film[2]] = film
+    sorted_films = list(films_dict.values())
+    # Convert sorted_list in string for discord embed
+    all_files_string = "\n".join([f"[Télécharger]({item[0]}) - {item[1]} - {item[2]} - {item[3]}" for item in sorted_films])
+    darkino_log.print_log("Fetched files", f"{len(sorted_films)} file(s) found for {movie['title']}", "GREEN")
+    return desc, actors, genders, trailer_link, all_files_string
 
 
 def __get_page__(url: str, log: bool = True) -> bool | bytes:
@@ -84,6 +117,9 @@ def __get_page__(url: str, log: bool = True) -> bool | bytes:
     except requests.exceptions.ConnectionError:
         darkino_log.print_log("ConnectionError", f"The server refused the connexion. Url : {url}", "RED", save=True)
         return False
+    except Exception as e:
+        darkino_log.print_log("UncommonError", f"An unusual error has occurred : {e}", "RED", save=True)
+        return False
     finally:
         client.close()
 
@@ -92,7 +128,7 @@ def __get_page__(url: str, log: bool = True) -> bool | bytes:
             darkino_log.print_log("HTTP request", f"{response.status_code} for {url}", "RED", save=True)
         return False
     if log:
-        darkino_log.print_log("HTTP request", f"{response.status_code} for {url}", "GREEN", save=True)
+        darkino_log.print_log("HTTP request", f"{response.status_code} for {url}", "GREEN")
     return response.content
 
 
@@ -107,7 +143,11 @@ def get_all_latest() -> list[dict] | bool:
     if not page_source:
         return False
     soup = BeautifulSoup(page_source, "html.parser")
-    all_last_films = soup.find_all("div", {"class": "videos"})[0].findChildren()[0]
+    try:
+        all_last_films = soup.find_all("div", {"class": "videos"})[0].findChildren()[0]
+    except IndexError as e:
+        darkino_log("Script Error - IndexError", f"An error occured when fetching all films : {e}", "RED", save=True)
+        return False
 
     # Sort all the movies in a list of dictionnary
     sorted_all_movies = []
